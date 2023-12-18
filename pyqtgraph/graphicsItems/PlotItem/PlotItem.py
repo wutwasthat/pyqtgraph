@@ -626,7 +626,6 @@ class PlotItem(GraphicsWidget):
           
         if clear:
             self.clear()
-            
         item = PlotDataItem(*args, **kargs)
             
         if params is None:

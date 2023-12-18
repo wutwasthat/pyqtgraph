@@ -212,14 +212,19 @@ class LegendItem(GraphicsWidgetAnchor, GraphicsWidget):
         title           The title to display for this item. Simple HTML allowed.
         ==============  ========================================================
         """
-        label = LabelItem(name, color=self.opts['labelTextColor'],
-                          justify='left', size=self.opts['labelTextSize'])
+        if not isinstance(name, list):
+            name = [name]
+        
+        labels = [LabelItem(n, color=self.opts['labelTextColor'],
+                          justify='left', size=self.opts['labelTextSize']) for n in name]
         if isinstance(item, self.sampleType):
-            sample = item
+            sample = [item]
         else:
-            sample = self.sampleType(item)
-        self.items.append((sample, label))
-        self._addItemToLayout(sample, label)
+            sample = [self.sampleType(item) for _ in range(len(labels))]
+        for i, label in enumerate(labels):
+            sample[i].index = i
+            self.items.append((sample[i], label))
+            self._addItemToLayout(sample[i], label)
         self.updateSize()
 
     def _addItemToLayout(self, sample, label):
@@ -347,6 +352,7 @@ class ItemSample(GraphicsWidget):
     def __init__(self, item):
         GraphicsWidget.__init__(self)
         self.item = item
+        self.index = 0
 
     def boundingRect(self):
         return QtCore.QRectF(0, 0, 20, 20)
@@ -363,7 +369,7 @@ class ItemSample(GraphicsWidget):
             return
 
         if not isinstance(self.item, ScatterPlotItem):
-            p.setPen(fn.mkPen(opts['pen']))
+            p.setPen(fn.mkPen(opts['pen'][self.index]))
             p.drawLine(0, 11, 20, 11)
 
             if (opts.get('fillLevel', None) is not None and

@@ -275,7 +275,9 @@ class PlotCurveItem(GraphicsObject):
         ## Add pen width only if it is non-cosmetic.
         pen = self.opts['pen']
         spen = self.opts['shadowPen']
-        if pen is not None and not pen.isCosmetic() and pen.style() != QtCore.Qt.PenStyle.NoPen:
+        if not isinstance(pen, list):
+            pen = [pen]
+        if all(p is not None and not p.isCosmetic() and p.style() != QtCore.Qt.PenStyle.NoPen for p in pen):
             b = (b[0] - pen.widthF()*0.7072, b[1] + pen.widthF()*0.7072)
         if spen is not None and not spen.isCosmetic() and spen.style() != QtCore.Qt.PenStyle.NoPen:
             b = (b[0] - spen.widthF()*0.7072, b[1] + spen.widthF()*0.7072)
@@ -287,8 +289,10 @@ class PlotCurveItem(GraphicsObject):
         pen = self.opts['pen']
         spen = self.opts['shadowPen']
         w = 0
-        if  pen is not None and pen.isCosmetic() and pen.style() != QtCore.Qt.PenStyle.NoPen:
-            w += pen.widthF()*0.7072
+        if not isinstance(pen, list):
+            pen = [pen]
+        if all(p is not None and p.isCosmetic() and p.style() != QtCore.Qt.PenStyle.NoPen for p in pen):
+            w += pen[0].widthF()*0.7072
         if spen is not None and spen.isCosmetic() and spen.style() != QtCore.Qt.PenStyle.NoPen:
             w = max(w, spen.widthF()*0.7072)
         if self.clickable:
@@ -375,7 +379,10 @@ class PlotCurveItem(GraphicsObject):
         if args and args[0] is None:
             self.opts['pen'] = None
         else:
-            self.opts['pen'] = fn.mkPen(*args, **kargs)
+            if isinstance(args[0], list):
+                self.opts['pen'] = [fn.mkPen(a, **kargs) for a in args[0]]
+            else:
+                self.opts['pen'] = fn.mkPen(*args, **kargs)
         self.invalidateBounds()
         self.update()
 
@@ -900,25 +907,30 @@ class PlotCurveItem(GraphicsObject):
                         p.drawPath(self.getPath())
 
         cp = self.opts['pen']
-        if not isinstance(cp, QtGui.QPen):
-            cp = fn.mkPen(cp)
+        if isinstance(cp, list):
+            cp = [fn.mkPen(p) if not isinstance(p, QtGui.QPen) else p for p in cp]
+        elif not isinstance(cp, QtGui.QPen):
+            cp = [fn.mkPen(cp)]
 
-        p.setPen(cp)
-        if self._shouldUseDrawLineSegments(cp):
+        p.setPen(cp[0])
+        if self._shouldUseDrawLineSegments(cp[0]):
             if do_y_matrix:
-                for line in total_lines:
+                for i, line in enumerate(total_lines):
+                    p.setPen(cp[i])
                     p.drawLines(*self._getLineSegments(line))
             else:
                 p.drawLines(*self._getLineSegments())
             if do_fill_outline:
                 if do_y_matrix:
-                    for line in total_lines:
+                    for i, line in enumerate(total_lines):
+                        p.setPen(cp[i])
                         p.drawLines(*self._getClosingSegments(line))
                 else:
                     p.drawLines(self._getClosingSegments())
         else:
             if do_fill_outline:
-                for line in total_lines:
+                for i, line in enumerate(total_lines):
+                    p.setPen(cp[i])
                     if self._shouldUseFillPathList():                   
                         paths = self._getFillPathList(line)                            
                     else:
@@ -928,7 +940,8 @@ class PlotCurveItem(GraphicsObject):
             else:
                 path = self.getPath()
                 if isinstance(path, list):
-                    for ipath in path:
+                    for i, ipath in enumerate(path):
+                        p.setPen(cp[i])
                         p.drawPath(ipath)  
                 else:
                     p.drawPath(self.getPath())
@@ -986,35 +999,40 @@ class PlotCurveItem(GraphicsObject):
         try:
             x, y = self.getData()
             pos = np.empty((len(x), 2), dtype=np.float32)
-            pos[:,0] = x
-            pos[:,1] = y
-            gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
-            try:
-                gl.glVertexPointerf(pos)
-                pen = fn.mkPen(self.opts['pen'])
-                gl.glColor4f(*pen.color().getRgbF())
-                width = pen.width()
-                if pen.isCosmetic() and width < 1:
-                    width = 1
-                gl.glPointSize(width)
-                gl.glLineWidth(width)
 
-                # enable antialiasing if requested
-                if self._exportOpts is not False:
-                    aa = self._exportOpts.get('antialias', True)
+            for i in range(0, y.shape[0] if y.ndim==2 else 1):
+                pos[:,0] = x
+                if y.ndim == 2:
+                    pos[:,1] = y[i]
                 else:
-                    aa = self.opts['antialias']
-                if aa:
-                    gl.glEnable(gl.GL_LINE_SMOOTH)
-                    gl.glEnable(gl.GL_BLEND)
-                    gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
-                    gl.glHint(gl.GL_LINE_SMOOTH_HINT, gl.GL_NICEST)
-                else:
-                    gl.glDisable(gl.GL_LINE_SMOOTH)
+                    pos[:,1] = y
+                gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
+                try:
+                    gl.glVertexPointerf(pos)
+                    pen = fn.mkPen(self.opts['pen'][i])
+                    gl.glColor4f(*pen.color().getRgbF())
+                    width = pen.width()
+                    if pen.isCosmetic() and width < 1:
+                        width = 1
+                    gl.glPointSize(width)
+                    gl.glLineWidth(width)
 
-                gl.glDrawArrays(gl.GL_LINE_STRIP, 0, pos.shape[0])
-            finally:
-                gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+                    # enable antialiasing if requested
+                    if self._exportOpts is not False:
+                        aa = self._exportOpts.get('antialias', True)
+                    else:
+                        aa = self.opts['antialias']
+                    if aa:
+                        gl.glEnable(gl.GL_LINE_SMOOTH)
+                        gl.glEnable(gl.GL_BLEND)
+                        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+                        gl.glHint(gl.GL_LINE_SMOOTH_HINT, gl.GL_NICEST)
+                    else:
+                        gl.glDisable(gl.GL_LINE_SMOOTH)
+
+                    gl.glDrawArrays(gl.GL_LINE_STRIP, 0, pos.shape[0])
+                finally:
+                    gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
         finally:
             p.endNativePainting()
 

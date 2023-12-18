@@ -735,7 +735,7 @@ class PlotDataItem(GraphicsObject):
                 raise TypeError('Invalid data type %s' % type(data))
 
         elif len(args) == 2:
-            seq = ('listOfValues', 'MetaArray', 'empty','2darray')
+            seq = ('listOfValues', 'MetaArray', 'empty','2darray', 'Nx2array')
             dtyp = dataType(args[0]), dataType(args[1])
             if dtyp[0] not in seq or dtyp[1] not in seq:
                 raise TypeError('When passing two unnamed arguments, both must be a list or array of values. (got %s, %s)' % (str(type(args[0])), str(type(args[1]))))
@@ -950,8 +950,15 @@ class PlotDataItem(GraphicsObject):
             if x.dtype == bool:
                 x = x.astype(np.uint8)
 
+            y_ = []
             if self.opts['fftMode']:
-                x,y = self._fourierTransform(x, y)
+                if y.ndim == 2:
+                    for i in range(0,y.shape[0]):
+                        x, temp = self._fourierTransform(x, y[i])
+                        y_.append(temp)
+                    y = np.array(y_)
+                else:
+                    x,y = self._fourierTransform(x, y)
                 # Ignore the first bin for fft data if we have a logx scale
                 if self.opts['logMode'][0]:
                     x=x[1:]
@@ -1056,7 +1063,6 @@ class PlotDataItem(GraphicsObject):
                 y1[:,0] = y2.max(axis=1)
                 y1[:,1] = y2.min(axis=1)
                 y = y1.reshape(n*2)
-
         if self.opts['dynamicRangeLimit'] is not None:
             if view_range is not None:
                 data_range = self._datasetMapped.dataRect()
