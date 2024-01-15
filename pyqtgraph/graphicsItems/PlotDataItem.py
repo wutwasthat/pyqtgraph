@@ -1051,7 +1051,10 @@ class PlotDataItem(GraphicsObject):
                 n = len(x) // ds
                 stx = ds//2 # start of x-values; try to select a somewhat centered point
                 x = x[stx:stx+n*ds:ds] 
-                y = y[:n*ds].reshape(n,ds).mean(axis=1)
+                if y.ndim == 2:
+                    y = y[:,:n*ds].reshape(-1, ds, n).mean(axis=1)
+                else: 
+                    y = y[:n*ds].reshape(n, ds).mean(axis=1)
             elif self.opts['downsampleMethod'] == 'peak':
                 n = len(x) // ds
                 x1 = np.empty((n,2))
@@ -1101,7 +1104,6 @@ class PlotDataItem(GraphicsObject):
         self._datasetDisplay = PlotDataset(x, y, xAllFinite, yAllFinite)
         self.setProperty('xViewRangeWasChanged', False)
         self.setProperty('yViewRangeWasChanged', False)
-
         return self._datasetDisplay
 
     def getData(self):
