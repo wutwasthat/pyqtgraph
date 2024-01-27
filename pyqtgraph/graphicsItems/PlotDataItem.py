@@ -829,7 +829,6 @@ class PlotDataItem(GraphicsObject):
         self._adsLastValue   = 1     # reset auto-downsample value
 
         profiler('set data')
-
         self.updateItems( styleUpdate = self.property('styleWasChanged') )
         self.setProperty('styleWasChanged', False) # items have been updated
         profiler('update items')
@@ -983,7 +982,7 @@ class PlotDataItem(GraphicsObject):
         y = self._datasetMapped.y
         xAllFinite = self._datasetMapped.xAllFinite
         yAllFinite = self._datasetMapped.yAllFinite
-
+        
         view = self.getViewBox()
         if view is None:
             view_range = None
@@ -1046,7 +1045,10 @@ class PlotDataItem(GraphicsObject):
         if ds > 1:
             if self.opts['downsampleMethod'] == 'subsample':
                 x = x[::ds]
-                y = y[::ds]
+                if y.ndim == 1:
+                    y = y[::ds]
+                else:
+                    y = y[:,::ds]
             elif self.opts['downsampleMethod'] == 'mean':
                 n = len(x) // ds
                 stx = ds//2 # start of x-values; try to select a somewhat centered point
